@@ -1,0 +1,31 @@
+name: Update the list
+
+# Every morning after GullyHire's refresh (07:00 IST), download the regenerated list and commit it if it changed.
+
+on:
+  schedule:
+    - cron: "15 2 * * *"   # 07:45 IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download today's list
+        run: |
+          for f in README.md EARLY-CAREER.md; do
+            curl -fsSL "https://gullyhire.in/data/github/$f?d=$(date +%F)" -o "$f.new"
+            # only accept a real list (guards against an error page replacing the README)
+            grep -q '^| Company | Role |' "$f.new" && mv "$f.new" "$f" || { echo "bad $f"; rm -f "$f.new"; }
+          done
+      - name: Commit if changed
+        run: |
+          git config user.name "gullyhire-bot"
+          git config user.email "gullyhire-bot@users.noreply.github.com"
+          git add README.md EARLY-CAREER.md
+          git diff --cached --quiet || git commit -m "Update list: $(TZ=Asia/Kolkata date +'%-d %b %Y')"
+          git push
